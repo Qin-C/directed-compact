@@ -102,6 +102,7 @@ def test_compare(d):
     code, out = compare_case(d, "all", FULL)
     check("全在:退出 0", code == 0, out)
     check("全在:警告段 2 条,1 在 1 判不了", row(out, "警告") == [2, 1, 0, 0, 0, 1], out)
+    check("判不了有单独提示", "判不了,不算核过" in out, out)
     check("全在:原话段全在", row(out, "原话") == [1, 1, 0, 0, 0, 0], out)
     check("全在:未决段全在", row(out, "未决") == [1, 1, 0, 0, 0, 0], out)
     check("全在:子代理段全在", row(out, "在跑的子代理") == [1, 1, 0, 0, 0, 0], out)

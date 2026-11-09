@@ -8,13 +8,13 @@
     标识符、「」里引文的前 8 个字。摘要可能换一种语言或换一种说法,锚点更容易原样活下来,
     所以只比锚点;
   - 一条的锚点在摘要里找到超过一半 = 在;找到一部分 = 残;一个都没有 = 丢;
-    抽不出锚点 = 判不了(人看);
+  - 抽不出锚点的条目比原文片段:超过一半对得上 = 在,否则 = 判不了(人看,不算核过);
   - 摘要没保住、但压缩边界原样保留的那几条消息里有的,单列为「只在保留段」,不算丢。
 
 用法:
   python3 compare-summary.py <transcript.jsonl> <checkpoint.md> [--nth -1]
   --nth  取第几次压缩(默认 -1 = 最近一次,-2 = 上一次)
-退出码:0 = 没有丢或残;1 = 有丢或残;2 = 用法或输入错误。
+退出码:0 = 没有丢或残(「判不了」的不算核过);1 = 有丢或残;2 = 用法或输入错误。
 
 限定:「在」只说明标识符活着,不保证意思没走样;零丢失也不证明检查点本身写对了。
 只读这一份转录;转录格式不是公开接口,会随 Claude Code 版本变化。
@@ -113,6 +113,14 @@ def anchors(item):
     return [a for a in found if not any(a != b and a in b for b in found)]
 
 
+def text_anchors(item):
+    """抽不出标识符的条目(常见于全中文内容),退一步取原文片段:最长的几段,每段前 8 个字。"""
+    s = re.sub(r"^(\d+[.、)]\s*|[-*·]\s+)", "", item.strip())
+    parts = [p for p in re.split(r"[,,。;;::、()()|「」\s]+", s) if len(p) >= 4]
+    parts.sort(key=len, reverse=True)
+    return [p[:8] for p in parts[:4]]
+
+
 def norm(s):
     return re.sub(r"\s+", "", s).replace("\\n", "")
 
@@ -190,6 +198,10 @@ def main():
         for idx, it in enumerate(items, 1):
             an = anchors(it)
             if not an:
+                fallback = text_anchors(it)
+                if fallback and sum(norm(a) in summary for a in fallback) * 2 > len(fallback):
+                    c["在"] += 1
+                    continue
                 c["判不了"] += 1
                 detail.append(f"  ? {emo}{idx} 抽不出锚点,人看:{it[:70]}")
                 continue
@@ -215,6 +227,9 @@ def main():
         print("\n".join(detail))
     print()
     print("✓ 没有丢或残" if bad == 0 else f"✗ {bad} 条丢或残,去转录里找回,补进当前上下文")
+    unknown = sum(1 for d in detail if d.startswith("  ?"))
+    if unknown:
+        print(f"⚠ 另有 {unknown} 条判不了,不算核过,要人看")
     print("注意:机器只比锚点。「在」= 标识符活着,不保证意思没走样;「判不了」的要人看。摘要可能把数字更新成压前最后几轮的新事实,先分清是更新了还是丢了。")
     return 1 if bad else 0
 
